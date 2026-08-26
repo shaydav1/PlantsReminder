@@ -28,7 +28,7 @@ A Python automation script that calculates optimal watering schedules for househ
 
 ### 1. Prerequisites
 
-Ensure Python 3.8+ is installed, then install the Google API client libraries:
+Ensure Python 3.9+ is installed, then install the Google API client libraries:
 
 ```bash
 pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
@@ -37,7 +37,7 @@ pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
 ### 2. Google Cloud Platform Configuration
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Enable both **Google Tasks API** and **Google Calendar API**.
+2. Enable the Google Tasks AP.
 3. Configure the **OAuth Consent Screen** (set publishing status or test users).
 4. Create an **OAuth 2.0 Client ID** with Application Type set to **Desktop App**.
 5. Download the JSON credentials file, rename it to `credentials.json`, and place it in the project root directory.

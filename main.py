@@ -1,4 +1,4 @@
-from plants_reminder import main
+from plants_reminder import sync_plants_to_tasks
 
 if __name__ == "__main__":
-    main()
+    sync_plants_to_tasks()
