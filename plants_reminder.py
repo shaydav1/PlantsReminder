@@ -14,6 +14,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/tasks",
 ]
 TIMEZONE = ZoneInfo("Asia/Jerusalem")
+UTC_TZ = ZoneInfo("UTC")
 TASKLIST_ID = "@default"
 TASK_HOUR = 9
 
@@ -72,11 +73,11 @@ def adjust_for_saturday(target_date):
 
 
 def create_due_datetime(target_date):
-    """Creates a local Israel datetime at 09:00 and converts it to UTC for Google Tasks."""
+    """Creates a local Israel datetime at configured hour and converts it to UTC for Google Tasks."""
     local_datetime = datetime.combine(
         target_date, time(hour=TASK_HOUR), tzinfo=TIMEZONE
     )
-    return local_datetime.astimezone(ZoneInfo("UTC"))
+    return local_datetime.astimezone(UTC_TZ)
 
 
 # ============================================================
