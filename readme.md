@@ -44,7 +44,7 @@ pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
 ### 3. Running the Script
 
-Execute the script from your terminal or PyCharm:
+Execute the script from your terminal or PyCharm: 
 
 ```bash
 python plants_reminder.py
