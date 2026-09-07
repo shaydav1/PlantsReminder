@@ -79,3 +79,6 @@ __pycache__/
 .idea/
 .venv/
 ```
+### Smart Task Management
+- **Target Task List:** Automatically syncs with your designated Google Tasks list.
+- **Duplicate Prevention:** Checks for existing open or recently completed tasks before creating new ones, preventing duplicate reminders on the same day.
