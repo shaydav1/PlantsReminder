@@ -8,7 +8,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 # ============================================================
-# Configuration
+# הגדרות
 # ============================================================
 SCOPES = [
     "https://www.googleapis.com/auth/tasks",
@@ -41,95 +41,85 @@ PLANTS_CONFIG = {
     },
 }
 
-
 # ============================================================
-# Date / Season helpers
+# פונקציות עזר - תאריכים ועונות
 # ============================================================
 def now_local():
-    """Returns the current date/time in Israel."""
+    """מחזירה את התאריך והשעה הנוכחיים בישראל"""
     return datetime.now(TIMEZONE)
-
 
 def is_summer(date_obj):
     """
-    Summer season: May through October.
-    Winter season: November through April.
+    עונת קיץ: מאי עד אוקטובר
+    עונת חורף: נובמבר עד אפריל
     """
     return 5 <= date_obj.month <= 10
 
-
 def get_interval_days(plant_config, date_obj):
-    """Select watering interval based on the season of the given date."""
+    """בוחרת את מרווח ההשקיה לפי עונת השנה"""
     if is_summer(date_obj):
         return plant_config["summer_days"]
     return plant_config["winter_days"]
 
-
 def adjust_for_saturday(target_date):
-    """If the watering date falls on Saturday, move it to Sunday."""
-    if target_date.weekday() == 5:  # Saturday
+    """אם תאריך היעד נופל על יום שבת, דוחה ליום ראשון"""
+    if target_date.weekday() == 5:
         return target_date + timedelta(days=1)
     return target_date
 
-
 def create_due_datetime(target_date):
-    """Creates a local Israel datetime at configured hour and converts it to UTC for Google Tasks."""
+    """מייצרת תאריך עם השעה שהוגדרה ומווסתת לזמן אוניברסלי (UTC)"""
     local_datetime = datetime.combine(
         target_date, time(hour=TASK_HOUR), tzinfo=TIMEZONE
     )
     return local_datetime.astimezone(UTC_TZ)
 
+def parse_google_datetime(dt_str):
+    """קוראת תאריכים שחוזרים מגוגל בצורה בטוחה (מונע קריסות)"""
+    if not dt_str:
+        return None
+    try:
+        clean_str = dt_str.replace("Z", "+00:00")
+        return datetime.fromisoformat(clean_str)
+    except Exception as e:
+        print(f"⚠️ שגיאה בפירסור תאריך ({dt_str}): {e}")
+        return None
 
 # ============================================================
-# Google Tasks API Setup
+# תקשורת עם Google Tasks API
 # ============================================================
 def get_tasks_service():
-    """Authenticate and return the Google Tasks service."""
+    """מתחברת לשירות גוגל עם פרטי הגישה"""
     creds = None
-
     if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file(
-            "token.json",
-            SCOPES,
-        )
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "credentials.json",
-                SCOPES,
-            )
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             creds = flow.run_local_server(port=0)
 
         with open("token.json", "w", encoding="utf-8") as token:
             token.write(creds.to_json())
 
-    return build(
-        "tasks",
-        "v1",
-        credentials=creds,
-    )
-
+    return build("tasks", "v1", credentials=creds)
 
 def get_all_tasks(service, show_completed=False):
-    """Retrieve all tasks with proper pagination handling."""
+    """שולפת משימות. אם show_completed מופעל - שולפת גם משימות מוסתרות שבוצעו"""
     all_tasks = []
     page_token = None
 
     while True:
-        response = (
-            service.tasks()
-            .list(
-                tasklist=TASKLIST_ID,
-                showCompleted=show_completed,
-                showHidden=show_completed,
-                pageToken=page_token,
-            )
-            .execute()
-        )
+        request_args = {
+            "tasklist": TASKLIST_ID,
+            "showCompleted": show_completed,
+            "showHidden": show_completed,
+            "pageToken": page_token,
+        }
 
+        response = service.tasks().list(**request_args).execute()
         all_tasks.extend(response.get("items", []))
         page_token = response.get("nextPageToken")
 
@@ -138,40 +128,29 @@ def get_all_tasks(service, show_completed=False):
 
     return all_tasks
 
-
 # ============================================================
-# Task Processing & Scheduling
+# ניהול משימות והשקיות
 # ============================================================
 def get_last_completed_dates(service):
-    """Find the most recent completed watering date for each plant."""
+    """מוצאת את התאריך האחרון בו הושלמה השקיה, עבור כל צמח"""
     completed_dates = {}
-
     try:
         tasks = get_all_tasks(service, show_completed=True)
-
         for task in tasks:
             title = task.get("title", "")
             status = task.get("status")
             completed_time = task.get("completed")
 
-            if (
-                not title.startswith("🪴 השקיה:")
-                or status != "completed"
-                or not completed_time
-            ):
+            if not title.startswith("🪴 השקיה:") or status != "completed":
                 continue
 
             plant_name = title.replace("🪴 השקיה:", "", 1).strip()
+            completed_datetime = parse_google_datetime(completed_time)
 
-            try:
-                completed_datetime = datetime.fromisoformat(
-                    completed_time.replace("Z", "+00:00")
-                )
-                completed_date = completed_datetime.astimezone(TIMEZONE).date()
-            except (ValueError, TypeError):
-                print(f"⚠️ לא ניתן לפרש תאריך השלמה עבור: {title}")
+            if not completed_datetime:
                 continue
 
+            completed_date = completed_datetime.astimezone(TIMEZONE).date()
             previous_date = completed_dates.get(plant_name)
             if previous_date is None or completed_date > previous_date:
                 completed_dates[plant_name] = completed_date
@@ -181,17 +160,16 @@ def get_last_completed_dates(service):
 
     return completed_dates
 
-
 def get_open_watering_tasks(service):
-    """Returns a set containing plant names that already have an open watering task."""
+    """מחזירה רשימה של צמחים שכבר קיימת להם משימה פתוחה"""
     watering_tasks = set()
-
     try:
         tasks = get_all_tasks(service, show_completed=False)
-
         for task in tasks:
             title = task.get("title", "")
-            if title.startswith("🪴 השקיה:"):
+            status = task.get("status")
+
+            if title.startswith("🪴 השקיה:") and status != "completed":
                 plant_name = title.replace("🪴 השקיה:", "", 1).strip()
                 if plant_name:
                     watering_tasks.add(plant_name)
@@ -201,9 +179,8 @@ def get_open_watering_tasks(service):
 
     return watering_tasks
 
-
 def calculate_next_watering_date(plant_config, last_completed_date, today):
-    """Calculate the next valid watering date."""
+    """מחשבת את תאריך ההשקיה הבא בהתאם לצמח ולתאריך ההשלמה בפועל"""
     if last_completed_date is None:
         next_watering = today
     else:
@@ -215,31 +192,30 @@ def calculate_next_watering_date(plant_config, last_completed_date, today):
 
     return adjust_for_saturday(next_watering)
 
-
 def create_watering_task(service, plant_name, plant_config, watering_date):
-    """Create a Google Task for the specified plant."""
+    """מייצרת משימה חדשה ביומן גוגל"""
     due_datetime_utc = create_due_datetime(watering_date)
-
     task_body = {
         "title": f"🪴 השקיה: {plant_name}",
         "notes": f"דגשי טיפול: {plant_config['note']}",
         "due": due_datetime_utc.isoformat().replace("+00:00", "Z"),
     }
-
     service.tasks().insert(tasklist=TASKLIST_ID, body=task_body).execute()
 
-
 # ============================================================
-# Main Executor
+# פונקציה ראשית
 # ============================================================
 def sync_plants_to_tasks():
     service = get_tasks_service()
     today = now_local().date()
 
-    print(f"📅 היום: {today.strftime('%d/%m/%Y')}")
+    print(f"📅 תאריך בדיקה: {today.strftime('%d/%m/%Y')}")
 
     last_completed_dates = get_last_completed_dates(service)
     open_watering_tasks = get_open_watering_tasks(service)
+
+    print(f"🔍 משימות פתוחות כרגע: {list(open_watering_tasks)}")
+    print(f"📜 היסטוריית השקיות שהושלמו: {last_completed_dates}")
 
     for plant_name, plant_config in PLANTS_CONFIG.items():
         if plant_name in open_watering_tasks:
@@ -249,11 +225,9 @@ def sync_plants_to_tasks():
         last_completed_date = last_completed_dates.get(plant_name)
 
         if last_completed_date:
-            print(
-                f"💧 {plant_name}: השקיה אחרונה ב-{last_completed_date.strftime('%d/%m/%Y')}"
-            )
+            print(f"💧 {plant_name}: השקיה אחרונה בוצעה ב-{last_completed_date.strftime('%d/%m/%Y')}")
         else:
-            print(f"💧 {plant_name}: לא נמצאה היסטוריית השקיה")
+            print(f"💧 {plant_name}: לא נמצאה היסטוריית השקיה ב-Google Tasks")
 
         next_watering = calculate_next_watering_date(
             plant_config=plant_config,
@@ -268,12 +242,9 @@ def sync_plants_to_tasks():
                 plant_config=plant_config,
                 watering_date=next_watering,
             )
-            print(
-                f"✅ נוצרה תזכורת ל-{plant_name} לתאריך {next_watering.strftime('%d/%m/%Y')} בשעה {TASK_HOUR:02d}:00"
-            )
+            print(f"✅ נוצרה תזכורת חדשה ל-{plant_name} לתאריך {next_watering.strftime('%d/%m/%Y')} בשעה {TASK_HOUR:02d}:00")
         except Exception as error:
             print(f"❌ שגיאה ביצירת תזכורת ל-{plant_name}: {error}")
-
 
 if __name__ == "__main__":
     sync_plants_to_tasks()
