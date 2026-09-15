@@ -180,15 +180,15 @@ def get_open_watering_tasks(service):
     return watering_tasks
 
 def calculate_next_watering_date(plant_config, last_completed_date, today):
-    """מחשבת את תאריך ההשקיה הבא בהתאם לצמח ולתאריך ההשלמה בפועל"""
+    """מחשבת את תאריך ההשקיה הבא החל מתאריך ההשקיה בפועל"""
     if last_completed_date is None:
-        next_watering = today
+        base_date = today
     else:
-        interval_days = get_interval_days(plant_config, last_completed_date)
-        next_watering = last_completed_date + timedelta(days=interval_days)
+        # בסיס החישוב הוא המאוחר מבין התאריכים: תאריך הביצוע בפועל או היום
+        base_date = max(last_completed_date, today)
 
-        if next_watering < today:
-            next_watering = today
+    interval_days = get_interval_days(plant_config, base_date)
+    next_watering = base_date + timedelta(days=interval_days)
 
     return adjust_for_saturday(next_watering)
 
