@@ -115,7 +115,7 @@ def get_all_tasks(service, show_completed=False):
         request_args = {
             "tasklist": TASKLIST_ID,
             "showCompleted": show_completed,
-            "showHidden": show_completed,
+            "showHidden": show_completed,  # <--- לוודא שהשורה הזו קיימת
             "pageToken": page_token,
         }
 
