@@ -150,7 +150,9 @@ def get_last_completed_dates(service):
             if not completed_datetime:
                 continue
 
+            # המרה לאזור הזמן המקומי
             completed_date = completed_datetime.astimezone(TIMEZONE).date()
+
             previous_date = completed_dates.get(plant_name)
             if previous_date is None or completed_date > previous_date:
                 completed_dates[plant_name] = completed_date
@@ -180,11 +182,15 @@ def get_open_watering_tasks(service):
     return watering_tasks
 
 def calculate_next_watering_date(plant_config, last_completed_date, today):
-    """מחשבת את תאריך ההשקיה הבא החל מתאריך ההשקיה בפועל"""
+    """
+    מחשבת את תאריך ההשקיה הבא:
+    תמיד מחשבת מרווח ימים מלא מתאריך ההשקיה בפועל.
+    אם תאריך ההשקיה הנטען קטן מהיום (בוצעה בעבר), נקודת הזינוק תהיה היום.
+    """
     if last_completed_date is None:
         base_date = today
     else:
-        # בסיס החישוב הוא המאוחר מבין התאריכים: תאריך הביצוע בפועל או היום
+        # בסיס החישוב לא יהיה ישן מ-today
         base_date = max(last_completed_date, today)
 
     interval_days = get_interval_days(plant_config, base_date)
